@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RTS Final Capstone — Cardiac Telemetry Pipeline · Diego Saavedra</title>
+<meta name="description" content="EEL 4775 Real-Time Systems final capstone: a dual-core ECG telemetry pipeline on ESP32 / FreeRTOS." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<style>
+  :root{
+    --bg:#0A0E0D;
+    --panel:#0F1513;
+    --panel-2:#121A17;
+    --line:#1E2A26;
+    --text:#E4ECE8;
+    --text-dim:#8FA39B;
+    --text-faint:#5A6E67;
+    --phosphor:#35E08A;
+    --phosphor-dim:#1F7A50;
+    --amber:#E8A33D;
+    --danger:#E2544A;
+    --mono:"IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+    --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --maxw:960px;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--phosphor);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+  code, .mono{font-family:var(--mono)}
+  code{background:#0000;color:var(--phosphor);font-size:.92em}
+  ::selection{background:var(--phosphor-dim);color:#fff}
+
+  /* ---- nav ---- */
+  header{position:sticky;top:0;z-index:20;background:rgba(10,14,13,.88);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .navrow{display:flex;align-items:center;gap:18px;padding:12px 22px;max-width:var(--maxw);margin:0 auto;flex-wrap:wrap}
+  .navrow .brand{font-family:var(--mono);font-size:.82rem;color:var(--phosphor);letter-spacing:.05em;margin-right:auto}
+  .navrow nav{display:flex;gap:16px;flex-wrap:wrap}
+  .navrow nav a{font-family:var(--mono);font-size:.76rem;color:var(--text-dim);letter-spacing:.06em;text-transform:uppercase}
+  .navrow nav a:hover{color:var(--phosphor);text-decoration:none}
+
+  /* ---- hero ---- */
+  .hero{padding:56px 0 34px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--amber)}
+  h1{font-family:var(--mono);font-weight:600;font-size:clamp(1.7rem,4vw,2.5rem);margin:.4em 0 .3em;letter-spacing:-.01em}
+  .lede{color:var(--text-dim);font-size:1.05rem;max-width:62ch;margin:0 0 22px}
+  .trace{width:100%;height:90px;display:block;margin:14px 0 6px}
+  .trace path{fill:none;stroke:var(--phosphor);stroke-width:2;filter:drop-shadow(0 0 5px rgba(53,224,138,.55))}
+  .trace .sweep{stroke-dasharray:1400;stroke-dashoffset:1400;animation:sweep 4.5s linear infinite}
+  @keyframes sweep{to{stroke-dashoffset:0}}
+  @media (prefers-reduced-motion: reduce){ .trace .sweep{animation:none;stroke-dashoffset:0} }
+
+  .facts{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+  .fact{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:9px 13px}
+  .fact .k{font-family:var(--mono);font-size:.63rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-faint)}
+  .fact .v{font-family:var(--mono);font-size:.92rem;color:var(--text);margin-top:2px}
+
+  .cta-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+  .btn{font-family:var(--mono);font-size:.8rem;padding:9px 16px;border-radius:7px;border:1px solid var(--line);color:var(--text);background:var(--panel)}
+  .btn:hover{border-color:var(--phosphor-dim);text-decoration:none;color:var(--phosphor)}
+  .btn.primary{border-color:var(--phosphor-dim);color:var(--phosphor)}
+  .btn.pending{color:var(--text-faint);border-style:dashed}
+
+  /* ---- sections ---- */
+  section{padding:44px 0;border-bottom:1px solid var(--line)}
+  h2{font-family:var(--mono);font-size:1.2rem;color:var(--text);margin:0 0 6px;letter-spacing:-.005em}
+  .sec-sub{color:var(--text-faint);font-size:.85rem;margin:0 0 20px}
+  p{color:var(--text-dim)}
+  p.body{color:var(--text);max-width:72ch}
+
+  .callout{border-left:3px solid var(--phosphor-dim);background:var(--panel);padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0}
+  .callout.amber{border-color:var(--amber)}
+  .callout p{margin:0;color:var(--text-dim);font-size:.92rem}
+  .callout strong{color:var(--text)}
+
+  /* ---- architecture ---- */
+  .diagram{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;overflow-x:auto}
+  .diagram img{display:block;width:100%;min-width:640px}
+
+  /* ---- table ---- */
+  table{width:100%;border-collapse:collapse;font-size:.87rem;margin-top:6px}
+  thead th{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th.num, td.num{text-align:right}
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--line);color:var(--text-dim);font-family:var(--mono);font-size:.85rem}
+  tbody td:first-child{color:var(--text)}
+  tbody tr:hover{background:var(--panel)}
+  .u-summary{display:flex;align-items:center;gap:14px;margin-top:18px;flex-wrap:wrap}
+  .u-summary .big{font-family:var(--mono);font-size:1.6rem;color:var(--phosphor)}
+  .u-bar{position:relative;flex:1;min-width:220px;height:10px;background:var(--panel);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+  .u-fill{position:absolute;inset:0;width:39%;background:linear-gradient(90deg,var(--phosphor-dim),var(--phosphor))}
+  .u-mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--amber);left:74.3%}
+  .u-mark .lbl{position:absolute;top:-18px;left:-24px;font-family:var(--mono);font-size:.62rem;color:var(--amber);white-space:nowrap}
+
+  /* ---- hazard cards ---- */
+  .hz-grid{display:grid;gap:14px;margin-top:16px}
+  .hz{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:16px 18px}
+  .hz .htitle{font-family:var(--mono);font-size:.92rem;color:var(--text)}
+  .hz .hrow{display:grid;grid-template-columns:90px 1fr;gap:8px;margin-top:10px;font-size:.86rem}
+  .hz .hrow .k{font-family:var(--mono);font-size:.66rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint)}
+  .hz .hrow .v{color:var(--text-dim)}
+  .std-tag{display:inline-block;margin-top:10px;font-family:var(--mono);font-size:.68rem;color:var(--amber);border:1px solid #4a3a20;background:#1a140a;padding:3px 8px;border-radius:999px}
+
+  /* ---- links grid ---- */
+  .link-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:16px}
+  .link-card{border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:14px 16px;display:block}
+  .link-card:hover{border-color:var(--phosphor-dim);text-decoration:none}
+  .link-card .lt{font-family:var(--mono);font-size:.85rem;color:var(--text)}
+  .link-card .ld{font-size:.78rem;color:var(--text-faint);margin-top:4px}
+  .link-card.pending{border-style:dashed;opacity:.7}
+
+  footer{padding:30px 0 60px}
+  footer p{font-size:.8rem;color:var(--text-faint)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="navrow">
+    <span class="brand">CARDIAC_WATCH // RTS26</span>
+    <nav>
+      <a href="#overview">Overview</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#tasks">Tasks</a>
+      <a href="#hazards">Hazards</a>
+      <a href="#degradation">Degradation</a>
+      <a href="#demo">Demo</a>
+      <a href="#reflection">Reflection</a>
+      <a href="https://github.com/dsaav3/dsaav3.github.io" target="_blank" rel="noopener">GitHub ↗</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero" style="border-bottom:0">
+    <span class="eyebrow">EEL 4775 — Real-Time Systems · Final Integration Capstone</span>
+    <h1>Cardiac Watch: a dual-core ECG telemetry pipeline on ESP32 / FreeRTOS</h1>
+    <p class="lede">
+      A producer/consumer pipeline that generates simulated ECG samples on one core, checks them
+      for arrhythmia, and dispatches an alert through an event-group rendezvous — while a second
+      core runs a live HTTP monitor without ever touching the timing-critical path.
+    </p>
+
+    <svg class="trace" viewBox="0 0 700 90" preserveAspectRatio="none" aria-hidden="true">
+      <path class="sweep" d="M0,45 L120,45 L140,45 L150,10 L162,80 L174,45 L200,45 L260,45 L280,45 L292,15 L304,75 L316,45 L340,45 L400,45 L420,45 L432,10 L444,80 L456,45 L480,45 L540,45 L560,45 L572,15 L584,75 L596,45 L700,45"/>
+    </svg>
+
+    <div class="facts">
+      <div class="fact"><div class="k">Board</div><div class="v">ESP32-WROOM-32</div></div>
+      <div class="fact"><div class="k">RTOS</div><div class="v">FreeRTOS, dual-core</div></div>
+      <div class="fact"><div class="k">Simulator</div><div class="v">Wokwi</div></div>
+      <div class="fact"><div class="k">Total utilization</div><div class="v">U = 0.390</div></div>
+      <div class="fact"><div class="k">IPC primitives</div><div class="v">Queue · Event Group · Notification</div></div>
+    </div>
+
+    <div class="cta-row">
+      <a class="btn primary" href="https://github.com/dsaav3/dsaav3.github.io" target="_blank" rel="noopener">Source on GitHub</a>
+      <a class="btn" href="https://github.com/dsaav3/dsaav3.github.io/blob/main/firmware/main.c" target="_blank" rel="noopener">firmware/main.c</a>
+      <a class="btn pending" href="#demo" title="Add your Wokwi link here">Wokwi project (add link)</a>
+      <a class="btn pending" href="#demo" title="Embed your demo video here">Demo video (coming soon)</a>
+    </div>
+  </section>
+
+  <section id="overview">
+    <h2>Project overview</h2>
+    <p class="sec-sub">what it is, and why it's built this way</p>
+    <p class="body">
+      This is my App 5 submission built out into the final capstone spine. The board runs four
+      tasks on Core 1 that model a simplified cardiac monitor: <code>producer_task</code>
+      generates a simulated ECG sample at 20&nbsp;Hz and pushes it into a queue,
+      <code>consumer_task</code> pulls each sample and runs a lightweight arrhythmia check,
+      and once both sides have touched a sample, <code>coordinator_task</code> treats that as
+      one completed monitoring cycle and hands off to <code>responder_task</code>, which is
+      responsible for dispatching the alert. A physical button on GPIO18 can also trigger the
+      responder directly through an ISR, standing in for a manual "call for help" input — that
+      path skips the whole pipeline on purpose, because a human pressing an alert button
+      shouldn't have to wait on a queue.
+    </p>
+    <p class="body">
+      The three IPC primitives aren't interchangeable here, they're each doing a specific job.
+      The <strong>queue</strong> decouples the producer's fixed 20&nbsp;Hz rate from however long
+      the consumer's check takes. The <strong>event group</strong> is what lets the coordinator
+      wait for two independent things to both be true (a sample produced <em>and</em> processed)
+      without polling or chaining semaphores. The <strong>direct task notification</strong> from
+      coordinator to responder — and from the ISR to responder — is the fast path, because once
+      an alert needs to go out there's no reason to pay for a queue or semaphore's overhead.
+    </p>
+    <p class="body">
+      Core 0 runs a separate <code>webmonitor_task</code> that connects to Wi-Fi and serves the
+      pipeline's live state (queue depth, event bits, per-task heartbeats) over HTTP, reusing the
+      web server pattern from App 1. It's pinned to Core 0 specifically so a slow HTTP request or
+      a Wi-Fi hiccup can never preempt or delay the real-time tasks on Core 1 — the monitor is a
+      passive observer, not a participant in the timing-critical path.
+    </p>
+  </section>
+
+  <section id="architecture">
+    <h2>System architecture</h2>
+    <p class="sec-sub">Core 1 real-time plane vs. Core 0 observability plane</p>
+    <div class="diagram">
+      <img src="architecture.svg" alt="Diagram of the dual-core pipeline: producer and consumer tasks feed a queue and event group on Core 1, a coordinator task waits on both event bits and notifies a responder task, a button ISR can notify the responder directly, and a Core 0 webmonitor task reads queue/event/heartbeat state read-only and serves it over HTTP." />
+    </div>
+    <p class="body" style="margin-top:14px">
+      Data only flows one direction across the core boundary: Core 0 reads queue depth, event
+      bits, and heartbeat counters, but never writes into the Core 1 pipeline. That keeps the
+      networking plane from being able to introduce timing hazards on the real-time plane, even
+      by accident.
+    </p>
+  </section>
+
+  <section id="tasks">
+    <h2>Tasks &amp; timing — WCET evidence</h2>
+    <p class="sec-sub">measured worst-case execution time C against period T, same units</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th class="num">Period T</th>
+          <th class="num">WCET C</th>
+          <th class="num">U = C/T</th>
+          <th class="num">Priority</th>
+          <th class="num">Deadline</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>producer_task (ECG sample)</td><td class="num">50 ms</td><td class="num">2.0 ms</td><td class="num">0.040</td><td class="num">3</td><td class="num">50 ms</td></tr>
+        <tr><td>consumer_task (arrhythmia check)</td><td class="num">50 ms</td><td class="num">10.0 ms</td><td class="num">0.200</td><td class="num">2</td><td class="num">50 ms</td></tr>
+        <tr><td>coordinator_task (sync)</td><td class="num">100 ms</td><td class="num">5.0 ms</td><td class="num">0.050</td><td class="num">4</td><td class="num">100 ms</td></tr>
+        <tr><td>responder_task (alerts)</td><td class="num">200 ms</td><td class="num">10.0 ms</td><td class="num">0.050</td><td class="num">5</td><td class="num">200 ms</td></tr>
+        <tr><td>webmonitor_task (Core 0)</td><td class="num">1000 ms</td><td class="num">50.0 ms</td><td class="num">0.050</td><td class="num">1</td><td class="num">1000 ms</td></tr>
+      </tbody>
+    </table>
+    <div class="u-summary">
+      <span class="big">U = 0.390</span>
+      <div class="u-bar">
+        <div class="u-fill"></div>
+        <div class="u-mark"><span class="lbl">RM bound 0.743</span></div>
+      </div>
+    </div>
+    <p style="font-size:.85rem;margin-top:10px">
+      U (0.390) sits comfortably under the Rate-Monotonic sufficiency bound for 5 tasks
+      (n·(2<sup>1/n</sup>−1) ≈ 0.743), so the set is schedulable under RM with headroom left for
+      RTOS overhead and Core-0 network jitter.
+      Full data: <a href="https://github.com/dsaav3/dsaav3.github.io/blob/main/docs/task-table.md" target="_blank" rel="noopener">docs/task-table.md</a>
+    </p>
+  </section>
+
+  <section id="hazards">
+    <h2>Hazard analysis &amp; standard mapping</h2>
+    <p class="sec-sub">what can go wrong, how it's mitigated, what it maps to</p>
+    <div class="hz-grid">
+      <div class="hz">
+        <div class="htitle">ECG queue overflow</div>
+        <div class="hrow"><span class="k">Effect</span><span class="v">Loss of historical cardiac data; producer could block indefinitely.</span></div>
+        <div class="hrow"><span class="k">Mitigation</span><span class="v">Drop-newest: if <code>data_q</code> is full, the incoming sample is rejected and logged rather than blocking the producer, so the consumer gets a chance to catch up without freezing the pipeline.</span></div>
+        <span class="std-tag">IEC 62304 — data loss mitigation</span>
+      </div>
+      <div class="hz">
+        <div class="htitle">Core 0 HTTP stack overflow</div>
+        <div class="hrow"><span class="k">Effect</span><span class="v">Silent failure of the network thread if the HTTP response buffer overruns its stack.</span></div>
+        <div class="hrow"><span class="k">Mitigation</span><span class="v">Increased <code>webmonitor_task</code> stack to 8192 bytes and kept all networking pinned to Core 0, isolated from Core 1's context switching.</span></div>
+        <span class="std-tag">ISO 14971 — resource exhaustion</span>
+      </div>
+      <div class="hz">
+        <div class="htitle">Priority inversion on sync</div>
+        <div class="hrow"><span class="k">Effect</span><span class="v">Alert dispatch delayed if a lower-priority task is holding a resource the responder needs.</span></div>
+        <div class="hrow"><span class="k">Mitigation</span><span class="v">Replaced sequential binary semaphores with a single event group AND-rendezvous, removing the ordering dependency that could cause inversion or deadlock.</span></div>
+        <span class="std-tag">IEC 62304 — concurrency &amp; synchronization</span>
+      </div>
+    </div>
+    <p style="font-size:.85rem;margin-top:14px">
+      Full write-up: <a href="https://github.com/dsaav3/dsaav3.github.io/blob/main/docs/hazard-analysis.md" target="_blank" rel="noopener">docs/hazard-analysis.md</a>
+    </p>
+  </section>
+
+  <section id="degradation">
+    <h2>Graceful degradation</h2>
+    <p class="sec-sub">what fails, how it's detected, what the system does instead of just stopping</p>
+    <div class="callout">
+      <p><strong>Queue pressure →</strong> drop-newest with a logged warning, instead of blocking the producer or crashing on overflow. The consumer keeps draining what's already buffered.</p>
+    </div>
+    <div class="callout amber">
+      <p><strong>Wi-Fi / networking failure →</strong> the pipeline doesn't depend on <code>webmonitor_task</code> to function. If Core 0 loses its connection, Core 1's producer → consumer → coordinator → responder chain keeps running untouched — the monitor is read-only and non-blocking by design, so losing it degrades observability, not real-time correctness.</p>
+    </div>
+    <div class="callout">
+      <p><strong>Manual override →</strong> the button ISR reaches the responder directly through <code>vTaskNotifyGiveFromISR</code>, bypassing the queue and event group entirely, so a human-triggered alert isn't at the mercy of pipeline backlog.</p>
+    </div>
+  </section>
+
+  <section id="demo">
+    <h2>Demo</h2>
+    <p class="sec-sub">video walkthrough + live simulator</p>
+    <!--
+      Once you have the YouTube link, replace this div with:
+      <div class="diagram"><iframe width="100%" height="420" src="https://www.youtube.com/embed/VIDEO_ID"
+        title="Demo video" frameborder="0" allowfullscreen></iframe></div>
+    -->
+    <div class="link-grid">
+      <a class="link-card pending" href="#" onclick="return false" aria-disabled="true">
+        <div class="lt">▶ Demo video</div>
+        <div class="ld">not yet recorded — swap this card for the YouTube embed above</div>
+      </a>
+      <a class="link-card pending" href="#" onclick="return false" aria-disabled="true">
+        <div class="lt">Wokwi project</div>
+        <div class="ld">SAAVEDRA-FINAL-RTS26Summer — paste the link here</div>
+      </a>
+    </div>
+  </section>
+
+  <section id="reflection">
+    <h2>Final reflection</h2>
+    <p class="sec-sub">in progress</p>
+    <div class="link-grid">
+      <a class="link-card pending" href="#" onclick="return false" aria-disabled="true">
+        <div class="lt">Reflection — coming soon</div>
+        <div class="ld">what I'd do differently, what was harder than expected, most valuable thing learned</div>
+      </a>
+    </div>
+  </section>
+
+  <section style="border-bottom:0">
+    <h2>Repo &amp; source</h2>
+    <div class="link-grid">
+      <a class="link-card" href="https://github.com/dsaav3/dsaav3.github.io" target="_blank" rel="noopener">
+        <div class="lt">GitHub repository</div>
+        <div class="ld">dsaav3/dsaav3.github.io — public, Pages enabled</div>
+      </a>
+      <a class="link-card" href="https://github.com/dsaav3/dsaav3.github.io/blob/main/firmware/main.c" target="_blank" rel="noopener">
+        <div class="lt">firmware/main.c</div>
+        <div class="ld">full pipeline source</div>
+      </a>
+      <a class="link-card" href="https://github.com/dsaav3/dsaav3.github.io/blob/main/docs/task-table.md" target="_blank" rel="noopener">
+        <div class="lt">docs/task-table.md</div>
+        <div class="ld">WCET evidence, raw</div>
+      </a>
+      <a class="link-card" href="https://github.com/dsaav3/dsaav3.github.io/blob/main/docs/hazard-analysis.md" target="_blank" rel="noopener">
+        <div class="lt">docs/hazard-analysis.md</div>
+        <div class="ld">full hazard write-up, raw</div>
+      </a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  <p>Diego Saavedra · EEL 4775 Real-Time Systems, Summer 2026 · AI assistance disclosed per honor code in firmware/main.c and README.</p>
+</footer>
+
+</body>
+</html>
