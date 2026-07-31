@@ -85,6 +85,8 @@
   /* ---- architecture ---- */
   .diagram{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;overflow-x:auto}
   .diagram img{display:block;width:100%;min-width:640px}
+  .video-frame{position:relative;width:100%;padding-top:56.25%;border-radius:6px;overflow:hidden;background:#000}
+  .video-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 
   /* ---- table ---- */
   table{width:100%;border-collapse:collapse;font-size:.87rem;margin-top:6px}
@@ -299,32 +301,88 @@
   <section id="demo">
     <h2>Demo</h2>
     <p class="sec-sub">video walkthrough + live simulator</p>
-    <!--
-      Once you have the YouTube link, replace this div with:
-      <div class="diagram"><iframe width="100%" height="420" src="https://www.youtube.com/embed/VIDEO_ID"
-        title="Demo video" frameborder="0" allowfullscreen></iframe></div>
-    -->
+
+    <!-- ============================================================
+      TO ADD THE VIDEO: replace VIDEO_ID_HERE below with your YouTube
+      video ID (the part after watch?v= in the URL) — there are two
+      occurrences right below. Then delete the "video-pending" card.
+      Nothing else needs to change.
+      ============================================================ -->
+    <div class="diagram" id="video-embed">
+      <div class="video-frame">
+        <iframe width="100%" height="100%" src="https://www.youtube.com/embed/VIDEO_ID_HERE"
+          title="Demo video" frameborder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowfullscreen></iframe>
+      </div>
+    </div>
     <div class="link-grid">
-      <a class="link-card pending" href="#" onclick="return false" aria-disabled="true">
+      <a class="link-card pending" id="video-pending-card" href="#" onclick="return false" aria-disabled="true">
         <div class="lt">▶ Demo video</div>
-        <div class="ld">not yet recorded — swap this card for the YouTube embed above</div>
+        <div class="ld">not yet recorded — the embed above is live and wired, just swap VIDEO_ID_HERE for the real ID</div>
       </a>
       <a class="link-card pending" href="#" onclick="return false" aria-disabled="true">
         <div class="lt">Wokwi project</div>
-        <div class="ld">SAAVEDRA-FINAL-RTS26Summer — paste the link here</div>
+        <div class="ld">SAAVEDRA-FINAL-RTS26Summer — paste the link here once you have it</div>
       </a>
     </div>
   </section>
 
   <section id="reflection">
     <h2>Final reflection</h2>
-    <p class="sec-sub">in progress</p>
-    <div class="link-grid">
-      <a class="link-card pending" href="#" onclick="return false" aria-disabled="true">
-        <div class="lt">Reflection — coming soon</div>
-        <div class="ld">what I'd do differently, what was harder than expected, most valuable thing learned</div>
-      </a>
+    <p class="sec-sub">what I'd do differently, what was harder than expected, the most valuable thing I learned</p>
+
+    <div class="hz-grid">
+      <div class="hz">
+        <div class="htitle">What was harder than expected</div>
+        <p class="body" style="margin-top:10px;font-size:.92rem">
+          The most difficult part of this project was debugging silent failures in the RTOS
+          environment, specifically deploying the web server on the ESP32. I couldn't get the
+          server to come up from Wokwi at first, so I traced the network init step by step,
+          adding print statements to the serial monitor to confirm Wi-Fi was actually connecting.
+          The telemetry showed the connection succeeding and the server attempting to
+          initialize, but the system kept crashing with no clear error. It turned out to be
+          memory-related — the default stack size for the web server task was too small for the
+          HTML/JSON payload, causing a silent overflow. Bumping the stack size fixed it instantly,
+          but it was a real lesson in how differently embedded failures present compared to a
+          normal logic error.
+        </p>
+      </div>
+      <div class="hz">
+        <div class="htitle">What I would do differently</div>
+        <p class="body" style="margin-top:10px;font-size:.92rem">
+          I'd spend a lot more time upfront mapping out memory allocations and a strict priority
+          band for every task before writing any code. Deciding task priorities turned out to be
+          a real balancing act — sensors need one priority band, control loops another, and
+          background work like logging or web monitoring has to sit at the bottom. I'd also
+          adopt the "bottom-half" interrupt strategy much earlier: instead of processing data
+          inside the ISR itself, which blocks the system, keep the ISR as short as possible and
+          use it only to hand off to a bottom-half task. Planning the RTOS architecture properly
+          from day one would have saved me a lot of the latency and memory issues I ran into
+          later.
+        </p>
+      </div>
+      <div class="hz">
+        <div class="htitle">The most valuable thing I learned</div>
+        <p class="body" style="margin-top:10px;font-size:.92rem">
+          The biggest takeaway from this course is the direct line between real-time embedded
+          constraints and human safety. Medical devices — pacemakers, ECG monitors, automated
+          patient beds — depend on hard real-time guarantees; a late calculation there is a
+          failed calculation, and it can cost a life. Learning to guarantee deterministic
+          behavior through proper queue sizing, memory management, and dual-core isolation
+          changed how I think about "working code." I'm graduating with my Computer Engineering
+          degree and starting at Texas Instruments, and this mindset is exactly what I'm taking
+          with me — TI ships a huge amount of electronics into automotive and industrial systems,
+          where a missed real-time constraint on an assembly line or in a vehicle braking system
+          causes real physical damage. This class closed the gap for me between writing code and
+          engineering safe, production-ready electronics.
+        </p>
+      </div>
     </div>
+
+    <p style="font-size:.85rem;margin-top:14px">
+      Full reflection: <a href="https://github.com/dsaav3/dsaav3.github.io/blob/main/docs/final-reflection.md" target="_blank" rel="noopener">docs/final-reflection.md</a>
+    </p>
   </section>
 
   <section style="border-bottom:0">
@@ -345,6 +403,10 @@
       <a class="link-card" href="https://github.com/dsaav3/dsaav3.github.io/blob/main/docs/hazard-analysis.md" target="_blank" rel="noopener">
         <div class="lt">docs/hazard-analysis.md</div>
         <div class="ld">full hazard write-up, raw</div>
+      </a>
+      <a class="link-card" href="https://github.com/dsaav3/dsaav3.github.io/blob/main/docs/final-reflection.md" target="_blank" rel="noopener">
+        <div class="lt">docs/final-reflection.md</div>
+        <div class="ld">final reflection, raw</div>
       </a>
     </div>
   </section>
